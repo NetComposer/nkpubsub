@@ -114,10 +114,12 @@ start_server([], _Event) ->
 start_server([Node|Rest], #nkpubsub{}=Event) ->
     case rpc:call(Node, nkpubsub_sup, start_event_server, [Event]) of
         {ok, Pid} ->
-            lager:notice("NkPUBSUB server for ~p started at ~p (~p)", [Event, node(Pid), Pid]),
+            lager:notice("NkPUBSUB server for ~p started at ~p (~p)",
+                [lager:pr(Event, ?MODULE), node(Pid), Pid]),
             {ok, Pid};
-        {error, Error} ->
-            lager:notice("NkPUBSUB could not start server for ~p at ~p: ~p", [Event, Node, Error]),
+        Other ->
+            lager:notice("NkPUBSUB could not start server for ~p at ~p: ~p",
+                [lager:pr(Event, ?MODULE), Node, Other]),
             start_server(Rest)
     end.
 
@@ -471,7 +473,9 @@ to_bin(Term) -> nklib_util:to_binary(Term).
 %-define(TEST, 1).
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
-%-compile([export_all]).
+%-compile([export_all, nowarn_export_all
+
+]).
 
 basic_test_() ->
     {setup,
@@ -504,28 +508,28 @@ test_reset() ->
 
 
 test1() ->
-    Reg = #{topic=>t, app=>srv, class=c, type=y},
+    Reg = #{topic=>t, app=>srv, class=>c, type=>y},
     Self = self(),
-    nkpubsub:subscribe(Reg#{obj_id=id1, body=#{b1=>1}}),
-    nkpubsub:subscribe(Reg#{obj_id=id2, body=#{b2=>2}}),
+    nkpubsub:subscribe(Reg#{obj_id=>id1, body=>#{b1=>1}}),
+    nkpubsub:subscribe(Reg#{obj_id=>id2, body=>#{b2=>2}}),
     {
         #{
-            {srv, <<"id1">>} := [{Self, <<>>, #{b1:=1}}],
-            {srv, <<"id2">>} := [{Self, <<>>, #{b2:=2}}]
+            {<<"srv">>, <<"id1">>} := [{Self, <<>>, #{b1:=1}}],
+            {<<"srv">>, <<"id2">>} := [{Self, <<>>, #{b2:=2}}]
         },
         2,
         #{
-            Self := {_, [{srv, <<"id2">>}, {srv, <<"id1">>}]}
+            Self := {_, [{<<"srv">>, <<"id2">>}, {<<"srv">>, <<"id1">>}]}
         },
         1
     } =
         dump(t, c, y),
 
-    nkpubsub:unsubscribe(Reg#{obj_id=id1}),
+    nkpubsub:unsubscribe(Reg#{obj_id=>id1}),
     {
-        #{{srv, <<"id2">>} := [{Self, <<>>, #{b2:=2}}]},
+        #{{<<"srv">>, <<"id2">>} := [{Self, <<>>, #{b2:=2}}]},
         1,
-        #{Self := {_, [{srv, <<"id2">>}]}},
+        #{Self := {_, [{<<"srv">>, <<"id2">>}]}},
         1
     } =
         dump(t, c, y),
@@ -546,7 +550,7 @@ test2() ->
     P7 = test_reg(<<>>, b7),
     timer:sleep(50),
 
-    Reg = #{topic=>t, class=>c, type=>y, app=srv},
+    Reg = #{topic=>t, class=>c, type=>y, app=>srv},
     lists:foreach(
         fun(_) ->
             nkpubsub:publish_one(Reg#{obj_id=>0}),
@@ -564,7 +568,7 @@ test2() ->
 
     lists:foreach(
         fun(_) ->
-            nkpubsub:publish_one(Reg#{obj_id=1}),
+            nkpubsub:publish_one(Reg#{obj_id=>1}),
             receive
                 {c, _RP2, <<"1">>, RB2} -> true = lists:member(RB2, [b1, b1b, b7])
             after 100 -> error(?LINE)
@@ -605,7 +609,7 @@ test2() ->
         end,
         lists:seq(1, 100)),
 
-    nkpubsub:publish(Reg#{obj_id=0}),
+    nkpubsub:publish(Reg#{obj_id=>0}),
     receive {c, P1, <<"0">>, b1} -> ok after 100 -> error(?LINE) end,
     receive {c, P2, <<"0">>, b1} -> ok after 100 -> error(?LINE) end,
     receive {c, P3, <<"0">>, b1b} -> ok after 100 -> error(?LINE) end,
@@ -614,22 +618,22 @@ test2() ->
     receive {c, P6, <<"0">>, b3b} -> ok after 100 -> error(?LINE) end,
     receive {c, P7, <<"0">>, b7} -> ok after 100 -> error(?LINE) end,
 
-    nkpubsub:publish(Reg#{obj_id=1}),
+    nkpubsub:publish(Reg#{obj_id=>1}),
     receive {c, P1, <<"1">>, b1} -> ok after 100 -> error(?LINE) end,
     receive {c, P2, <<"1">>, b1} -> ok after 100 -> error(?LINE) end,
     receive {c, P3, <<"1">>, b1b} -> ok after 100 -> error(?LINE) end,
     receive {c, P7, <<"1">>, b7} -> ok after 100 -> error(?LINE) end,
 
-    nkpubsub:publish(Reg#{obj_id=2}),
+    nkpubsub:publish(Reg#{obj_id=>2}),
     receive {c, P4, <<"2">>, b2} -> ok after 100 -> error(?LINE) end,
     receive {c, P7, <<"2">>, b7} -> ok after 100 -> error(?LINE) end,
 
-    nkpubsub:publish(Reg#{obj_id=3}),
+    nkpubsub:publish(Reg#{obj_id=>3}),
     receive {c, P5, <<"3">>, b3} -> ok after 100 -> error(?LINE) end,
     receive {c, P6, <<"3">>, b3b} -> ok after 100 -> error(?LINE) end,
     receive {c, P7, <<"3">>, b7} -> ok after 100 -> error(?LINE) end,
 
-    nkpubsub:publish(Reg#{obj_id=33}),
+    nkpubsub:publish(Reg#{obj_id=>33}),
     receive {c, P7, <<"33">>, b7} -> ok after 100 -> error(?LINE) end,
 
     receive _ -> error(?LINE) after 100 -> ok end,
@@ -652,21 +656,21 @@ test3() ->
 
     {
         #{
-            {srv, <<>>} := [{P7, <<>>, #{b7:=1}}],
-            {srv, <<"0">>} := L1,
-            {srv, <<"1">>} := L2,
-            {srv, <<"2">>} := [{P4, <<>>, #{b2:=1}}],
-            {srv, <<"3">>} := L3
+            {<<"srv">>, <<>>} := [{P7, <<>>, #{b7:=1}}],
+            {<<"srv">>, <<"0">>} := L1,
+            {<<"srv">>, <<"1">>} := L2,
+            {<<"srv">>, <<"2">>} := [{P4, <<>>, #{b2:=1}}],
+            {<<"srv">>, <<"3">>} := L3
         },
         5,
         #{
-            P1 := {_, [{srv, <<"0">>}, {srv, <<"1">>}]},
-            P2 := {_, [{srv, <<"0">>}, {srv, <<"1">>}]},
-            P3 := {_, [{srv, <<"0">>}, {srv, <<"1">>}]},
-            P4 := {_, [{srv, <<"0">>}, {srv, <<"2">>}]},
-            P5 := {_, [{srv, <<"0">>}, {srv, <<"3">>}]},
-            P6 := {_, [{srv, <<"0">>}, {srv, <<"3">>}]},
-            P7 := {_, [{srv, <<"0">>}, {srv, <<>>}]}
+            P1 := {_, [{<<"srv">>, <<"0">>}, {<<"srv">>, <<"1">>}]},
+            P2 := {_, [{<<"srv">>, <<"0">>}, {<<"srv">>, <<"1">>}]},
+            P3 := {_, [{<<"srv">>, <<"0">>}, {<<"srv">>, <<"1">>}]},
+            P4 := {_, [{<<"srv">>, <<"0">>}, {<<"srv">>, <<"2">>}]},
+            P5 := {_, [{<<"srv">>, <<"0">>}, {<<"srv">>, <<"3">>}]},
+            P6 := {_, [{<<"srv">>, <<"0">>}, {<<"srv">>, <<"3">>}]},
+            P7 := {_, [{<<"srv">>, <<"0">>}, {<<"srv">>, <<>>}]}
         },
         7
     }
@@ -686,19 +690,19 @@ test3() ->
     timer:sleep(100),
     {
         #{
-            {srv, <<>>} := [{P7, <<>>, #{b7:=1}}],
-            {srv, <<"0">>} := L4,
-            {srv, <<"1">>} := L5,
-            {srv, <<"3">>} := L6
+            {<<"srv">>, <<>>} := [{P7, <<>>, #{b7:=1}}],
+            {<<"srv">>, <<"0">>} := L4,
+            {<<"srv">>, <<"1">>} := L5,
+            {<<"srv">>, <<"3">>} := L6
         },
         4,
         #{
-            P2 := {_, [{srv, <<"0">>}, {srv, <<"1">>}]},
-            P3 := {_, [{srv, <<"0">>}, {srv, <<"1">>}]},
-            P4 := {_, [{srv, <<"0">>}]},
-            P5 := {_, [{srv, <<"0">>}, {srv, <<"3">>}]},
-            P6 := {_, [{srv, <<"0">>}, {srv, <<"3">>}]},
-            P7 := {_, [{srv, <<"0">>}, {srv, <<>>}]}
+            P2 := {_, [{<<"srv">>, <<"0">>}, {<<"srv">>, <<"1">>}]},
+            P3 := {_, [{<<"srv">>, <<"0">>}, {<<"srv">>, <<"1">>}]},
+            P4 := {_, [{<<"srv">>, <<"0">>}]},
+            P5 := {_, [{<<"srv">>, <<"0">>}, {<<"srv">>, <<"3">>}]},
+            P6 := {_, [{<<"srv">>, <<"0">>}, {<<"srv">>, <<"3">>}]},
+            P7 := {_, [{<<"srv">>, <<"0">>}, {<<"srv">>, <<>>}]}
         },
         6
     } =
@@ -724,7 +728,7 @@ test3() ->
 test4() ->
     P1 = test_reg(4, <<"/a/b">>, b5),
     timer:sleep(50),
-    Reg = #{topic=>t, class=>c, type=>t, app=>srv},
+    Reg = #{topic=>t, class=>c, type=>y, app=>srv},
     nkpubsub:publish(Reg#{obj_id=>4, namespace => <<"/a/b">>}),
     nkpubsub:publish(Reg#{obj_id=>4, namespace => <<"/a/b/c">>}),
     nkpubsub:publish(Reg#{obj_id=>4, namespace => <<"/a/">>}),
@@ -741,12 +745,12 @@ test_reg(I, B) ->
 
 
 test_reg(I, Namespace, B) ->
-    Reg = #{topic=>t, class=>c, type=>s, namespace=>Namespace, app>=srv},
+    Reg = #{topic=>t, class=>c, type=>y, namespace=>Namespace, app=>srv},
     Self = self(),
     spawn(
         fun() ->
-            nkpubsub:subscribe(Reg#{obj_id=I, body=#{B=>1}}),
-            nkpubsub:subscribe(Reg#{obj_id=0, body=#{B=>1}}),
+            nkpubsub:subscribe(Reg#{obj_id=>I, body=>#{B=>1}}),
+            nkpubsub:subscribe(Reg#{obj_id=>0, body=>#{B=>1}}),
             test_reg_loop(Self, I)
         end).
 
@@ -755,7 +759,7 @@ test_reg_loop(Pid, I) ->
     receive
         {nkpubsub, Event} ->
             #nkpubsub{topic = <<"t">>, class= <<"c">>, type= <<"y">>,
-                app=srv, obj_id=Id, body=B} = Event,
+                app = <<"srv">>, obj_id=Id, body=B} = Event,
             [{B1, 1}] = maps:to_list(B),
             Pid ! {c, self(), Id, B1},
             test_reg_loop(Pid, I);

@@ -24,7 +24,7 @@
 -behaviour(supervisor).
 
 -export([init/1, start_link/0]).
--export([start_events_sup/0, start_events_server/1]).
+-export([start_events_sup/0, start_event_server/1]).
 
 -include("nkpubsub.hrl").
 
@@ -56,7 +56,7 @@ start_events_sup() ->
 
 
 %% @doc
-start_events_server(#nkpubsub{topic=Topic, class=Class, type=Type}=Event) ->
+start_event_server(#nkpubsub{topic=Topic, class=Class, type=Type}=Event) ->
     Spec = {
         {Topic, Class, Type},
         {nkpubsub_srv, start_link, [Topic, Class, Type]},
@@ -70,9 +70,11 @@ start_events_server(#nkpubsub{topic=Topic, class=Class, type=Type}=Event) ->
             {error, started_elsewhere};
         {ok, Pid}  ->
             {ok, Pid};
+        {error, {already_started, Pid}} ->
+            {ok, Pid};
         {error, already_present} ->
             ok = supervisor:delete_child(nkpubsub_events_sup, {Topic, Class, Type}),
-            start_events_server(Event);
+            start_event_server(Event);
         {error, Error} ->
             {error, Error}
     end.
