@@ -1,0 +1,11 @@
+{application, nkpubsub, [
+    {description, "NetComposer PubSub Library"},
+    {vsn, "develop"},
+    {modules, []},
+    {registered, []},
+    {mod, {nkpubsub_app, []}},
+    {applications, [
+        nklib
+    ]},
+    {env, []}
+]}.
