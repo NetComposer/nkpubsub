@@ -1,6 +1,6 @@
 %% -------------------------------------------------------------------
 %%
-%% Copyright (c) 2018 Carlos Gonzalez Florido.  All Rights Reserved.
+%% Copyright (c) 2020 Carlos Gonzalez Florido.  All Rights Reserved.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -19,6 +19,40 @@
 %% -------------------------------------------------------------------
 
 %% @doc Main functions
+%% - Any process can subscribe to events calling subscribe/1
+%%      - For any combination of {topic, class, type} a process is started and
+%%       registered globally (class and type are commonly <<>>, meaning 'any')
+%%      - Subscriber must monitor the process pid, and re-suscribe if it fails
+%%      - A new registration is inserted at server, maybe focusing on app and/or obj_id
+%% - When a new event is generated, it is sent to the corresponding server based on
+%%   topic, class and type
+%%      - All subscribers are analyzed and found ones matching app and obj_uid, and
+%%        notifications are sent
+%%      - If the event has a namespace, only subscribers with a prefix are used
+%%      - Body, if present, is merged with each registered
+%%      - All selected receive a message {nkpubsub, Event}
+%%
+%% Efficiency
+%% - Sending a event to a topic that does not exist it very efficient, since it will
+%%   be detected locally that is not registered
+%% - You should not create dynamically many susbscribers to different {topic, class, type},
+%%   since they need to registered in all of the cluster
+%%
+%%
+%% - Chat sample
+%%      topic for 'notifications.rcp.netc.io', class 'ws'
+%%      ws subscribes, app netcomp, obj_id con su uid
+%%      notifications launches events for all uids
+%%
+%% - Actor sample
+%%      topic for 'actors.netc.io', class is group:resource, type is event type
+%%      can subscribe to all group:resource or one, one type or all
+%%      it can use body to filter event types (created, etc.) on reception and namespace
+
+
+
+
+
 -module(nkpubsub).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
 -export([publish/1, subscribe/1, subscribe/2, unsubscribe/1, unsubscribe/2]).
@@ -116,8 +150,8 @@ do_publish_one([Pid|Rest], Event) ->
 
 
 %% @doc Register a process to receive events
-%% Empty fields (subclass, type, obj_id, namespace) means match any
-%% You SHOULD monitor the pid() and re-register if it fails
+%% - Empty fields (app, class, type, obj_id, namespace) means match any
+%% - You SHOULD monitor the pid() and re-register if it fails
 -spec subscribe(event()) ->
     {ok, [pid()]} | {error, term()}.
 
@@ -250,88 +284,3 @@ parse(Data) ->
         {error, Error} ->
             {error, Error}
     end.
-
-
-%%%% @doc Serializes an event
-%%-spec unparse(#nkpubsub{}) ->
-%%    map().
-%%
-%%unparse(Event) ->
-%%    #nkpubsub{
-%%        app = _SrvId,
-%%        class = Class,
-%%        subclass = Sub,
-%%        type = Type,
-%%        obj_id = ObjId,
-%%        body = Body
-%%    } = Event,
-%%    Base = [
-%%        {class, Class},
-%%        case to_bin(Sub) of
-%%            <<>> -> [];
-%%            Sub2 -> {subclass, Sub2}
-%%        end,
-%%        case to_bin(Type) of
-%%            <<>> -> [];
-%%            Type2 -> {type, Type2}
-%%        end,
-%%        case to_bin(ObjId) of
-%%            <<>> -> [];
-%%            ObjId2 -> {obj_id, ObjId2}
-%%        end,
-%%        case is_map(Body) andalso map_size(Body) > 0 of
-%%            true -> {body, Body};
-%%            _ -> []
-%%        end
-%%    ],
-%%    maps:from_list(lists:flatten(Base)).
-%%
-%%
-%%%% @doc Serializes an event
-%%-spec unparse2(#nkpubsub{}) ->
-%%    map().
-%%
-%%unparse2(Event) ->
-%%    #nkpubsub{
-%%        app = _SrvId,
-%%        class = Class,
-%%        subclass = Sub,
-%%        type = Type,
-%%        obj_id = ObjId,
-%%        namespace = Namespace,
-%%        body = Body
-%%    } = Event,
-%%    Ev = case {Sub, Type} of
-%%        {<<>>, <<>>} -> Class;
-%%        {_, <<>>} -> <<Class/binary, $/, Sub/binary>>;
-%%        {<<>>, _} -> <<Class/binary, "/*/", Type/binary>>;
-%%        {_, _} -> <<Class/binary, $/, Sub/binary, $/, Type/binary>>
-%%    end,
-%%    Data1 = case is_map(Body) of
-%%        true -> Body;
-%%        _ -> #{}
-%%    end,
-%%    Data2 = case ObjId of
-%%        <<>> -> Data1;
-%%        _ -> Data1#{obj_id=>ObjId}
-%%    end,
-%%    Data3 = case Namespace of
-%%        <<>> -> Data2;
-%%        _ -> Data2#{namespace=>Namespace}
-%%    end,
-%%    #{
-%%        event => Ev,
-%%        data => Data3
-%%    }.
-
-
-
-
-%%%% @private
-%%to_bin(Term) when is_binary(Term) -> Term;
-%%to_bin(Term) -> nklib_util:to_binary(Term).
-
-
-
-
-

@@ -1,6 +1,6 @@
 %% -------------------------------------------------------------------
 %%
-%% Copyright (c) 2018 Carlos Gonzalez Florido.  All Rights Reserved.
+%% Copyright (c) 2020 Carlos Gonzalez Florido.  All Rights Reserved.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -19,11 +19,6 @@
 %% -------------------------------------------------------------------
 
 %% @doc Registration server
-%%
-%%
-
-
-
 -module(nkpubsub_srv).
 -behaviour(gen_server).
 -author('Carlos Gonzalez <carlosj.gf@gmail.com>').
@@ -34,15 +29,9 @@
 
 
 -include("nkpubsub.hrl").
-
-
 -define(LLOG(Type, Txt, Args, State),
     lager:Type("NkPUBSUB '~s/~s/~s' "++Txt,
         [State#state.topic, State#state.class, State#state.type|Args])).
-
--define(MOVE_WAIT_TIME, 30000).
-
-%%-define(NO_NKDIST, 1).
 
 
 %% ===================================================================
@@ -50,7 +39,7 @@
 %% ===================================================================
 
 
-%% @doc
+%% @doc Finds the pid of a server for {Topic, Class, Type}, if registered
 -spec find_server(#nkpubsub{}) ->
     {ok, pid()} | not_found.
 
@@ -118,7 +107,7 @@ start_server([Node|Rest], #nkpubsub{}=Event) ->
                 [lager:pr(Event, ?MODULE), node(Pid), Pid]),
             {ok, Pid};
         Other ->
-            lager:notice("NkPUBSUB could not start server for ~p at ~p: ~p",
+            lager:info("NkPUBSUB could not start server for ~p at ~p: ~p",
                 [lager:pr(Event, ?MODULE), Node, Other]),
             start_server(Rest)
     end.
@@ -475,7 +464,6 @@ to_bin(Term) -> nklib_util:to_binary(Term).
 -include_lib("eunit/include/eunit.hrl").
 %-compile([export_all, nowarn_export_all
 
-]).
 
 basic_test_() ->
     {setup,
